@@ -1,4 +1,3 @@
-
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -45,10 +44,19 @@ function formatFileSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function getFileType(file: File): string {
+function getFileType(file: File): "image" | "pdf" | "text" | "unsupported" {
+  const lowerName = file.name.toLowerCase();
   if (file.type.startsWith("image/")) return "image";
-  if (file.type === "application/pdf") return "pdf";
-  return "text";
+  if (file.type === "application/pdf" || lowerName.endsWith(".pdf")) return "pdf";
+  if (
+    file.type.startsWith("text/") ||
+    lowerName.endsWith(".txt") ||
+    lowerName.endsWith(".md") ||
+    lowerName.endsWith(".csv")
+  ) {
+    return "text";
+  }
+  return "unsupported";
 }
 
 function getConfidenceLevel(confidence: number): "high" | "medium" | "low" {
@@ -93,7 +101,15 @@ export default function Home() {
   // ─── File Upload ────────────────────────────────────────────────────────
 
   const handleFiles = useCallback((files: FileList | File[]) => {
-    const newFiles: UploadedFile[] = Array.from(files).map(file => {
+    const rawFiles = Array.from(files);
+    const acceptedFiles = rawFiles.filter(file => getFileType(file) !== "unsupported");
+    const rejectedFiles = rawFiles.filter(file => getFileType(file) === "unsupported");
+
+    if (rejectedFiles.length > 0) {
+      toast.error(`暂只支持图片/PDF/文本文件，以下文件未添加：${rejectedFiles.map(f => f.name).join("、")}`);
+    }
+
+    const newFiles: UploadedFile[] = acceptedFiles.map(file => {
       const preview = file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined;
       return { file, preview };
     });
@@ -158,6 +174,9 @@ export default function Home() {
 
         const result = await recognizeMutation.mutateAsync({
           uploadId: uploadResult.id,
+          fileType: "text",
+          fileContent: btoa(unescape(encodeURIComponent(textInput))),
+          mimeType: "text/plain",
           textContent: textInput,
         });
 
@@ -190,6 +209,7 @@ export default function Home() {
           });
 
           const fileType = getFileType(file);
+          if (fileType === "unsupported") continue;
 
           const uploadResult = await uploadMutation.mutateAsync({
             fileName: file.name,
@@ -209,6 +229,9 @@ export default function Home() {
 
           const result = await recognizeMutation.mutateAsync({
             uploadId: uploadResult.id,
+            fileType,
+            fileContent: base64,
+            mimeType: file.type,
             textContent,
             imageUrl: fileType === "image" ? uploadResult.fileUrl || undefined : undefined,
           });
@@ -445,7 +468,7 @@ export default function Home() {
                         拖拽文件到此处，或点击选择
                       </p>
                       <p className="text-xs text-muted-foreground mt-1">
-                        支持图片、PDF、文本文件，可同时上传多个
+                        支持图片、PDF、文本文件（txt/md/csv），可同时上传多个
                       </p>
                     </div>
                   </div>
@@ -803,3 +826,4 @@ export default function Home() {
     </SiteLayout>
   );
 }
+
