@@ -1,0 +1,68 @@
+{
+  "landing": {
+    "badge": "Auto Calendar",
+    "title": "智能识别日程，一键导入系统日历",
+    "subtitle": "帮你把图片/文件/聊天记录中的日程信息，一键同步到系统日历",
+    "ctaLabel": "开始试用",
+    "secondaryCtaLabel": "查看常见问题",
+    "featureBullets": [
+      "支持图片 / PDF / 文本识别",
+      "可编辑识别结果并修正细节",
+      "一键生成 ICS，适配主流系统日历"
+    ]
+  },
+  "faq": {
+    "title": "常见问题",
+    "intro": "以下问题覆盖了从导出 ICS 到在手机和电脑系统日历中完成导入的常见场景。",
+    "items": [
+      {
+        "id": "ios-import",
+        "category": "iPhone",
+        "question": "iPhone 下载 ICS 后怎么导入系统日历？",
+        "answer": "方式一：导入 ICS 文件\n（适用于一次性导入日程文件）\n\n1. 保存文件 📁\n先将 .ics 文件保存到 iPhone 的「文件」App 中。\n\n2. 拖拽导入 ✋📂\n在「文件」App 中，长按此文件不放，同时用另一只手指上滑返回主屏幕，打开「日历」App。\n将悬浮的文件图标拖入日历界面，看到绿色 + 号后松手。\n\n3. 确认添加 ✅\n检查所有事件详情，点击「添加全部」，并可为这个新日历命名，方便后续区分。\n\n———\n\n方式二：导入订阅链接\n（链接会自动同步更新日程）\n\n1. 打开订阅功能 📅\n打开「日历」App，点击底部「日历」标签，然后选择「添加日历」->「添加订阅日历」。\n\n2. 粘贴链接 🔗\n在弹出的字段中粘贴你的日历订阅链接，点击「下一步」或「订阅」。\n\n3. 完成设置 ⚙️\n设置名称、颜色和更新频率，最后点击「完成」即可。之后日历内容会自动同步更新。"
+      },
+      {
+        "id": "android-import",
+        "category": "Android",
+        "question": "Android 手机如何使用 ICS 文件？",
+        "answer": "大多数 Android 用户可在 Google Calendar 网页端导入 ICS：进入“设置 > 导入和导出”，导入后会同步到手机。部分国产日历 App 也支持直接导入本地 ICS 文件。"
+      },
+      {
+        "id": "mac-import",
+        "category": "macOS",
+        "question": "Mac 上怎么导入 ICS？",
+        "answer": "打开“日历”App，菜单选择“文件 > 导入”，选中下载的 ICS 文件并选择目标日历即可。也可以直接双击 ICS 文件完成导入。"
+      },
+      {
+        "id": "windows-import",
+        "category": "Windows",
+        "question": "Windows 电脑端怎么导入 ICS？",
+        "answer": "若使用 Outlook，可通过“文件 > 打开和导出 > 导入/导出”，选择 iCalendar (.ics) 导入。若使用网页版日历，可在对应服务的“导入日历”中上传 ICS。"
+      },
+      {
+        "id": "webcal-diff",
+        "category": "订阅",
+        "question": "HTTP 下载链接和 Webcal 订阅链接有什么区别？",
+        "answer": "HTTP 链接更适合一次性下载静态 ICS 文件；Webcal 更适合在支持订阅的日历应用中持续订阅更新。若你希望日程后续自动刷新，优先使用 Webcal。"
+      }
+    ]
+  },
+  "contact": {
+    "title": "联系开发者",
+    "intro": "欢迎反馈问题、提出改进建议，或沟通合作。",
+    "channels": [
+      {
+        "type": "email",
+        "label": "邮箱",
+        "value": "yourname@example.com",
+        "note": "建议用于功能反馈与合作沟通"
+      },
+      {
+        "type": "wechat",
+        "label": "微信",
+        "value": "your_wechat_id",
+        "note": "添加时请备注 Auto Calendar"
+      }
+    ]
+  }
+}
