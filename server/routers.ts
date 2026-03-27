@@ -5,7 +5,6 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { invokeLLM } from "./_core/llm";
-import { storagePut, storageGet } from "./storage";
 import {
   createUploadRecord,
   updateUploadRecord,
@@ -142,29 +141,30 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const userId = ctx.user?.id || 0;
-        const fileBuffer = Buffer.from(input.fileContent, "base64");
 
-        // Upload to S3 for images and PDFs
+        // In no-storage mode, keep image content as data URL for vision models.
         let fileUrl: string | null = null;
         let fileKey: string | null = null;
 
-        if (input.fileType !== "text") {
-          const suffix = nanoid(8);
-          const key = `uploads/${userId}/${suffix}-${input.fileName}`;
-          const result = await storagePut(key, fileBuffer, input.mimeType || "application/octet-stream");
-          fileUrl = result.url;
-          fileKey = result.key;
+        if (input.fileType === "image") {
+          const mime = input.mimeType || "image/jpeg";
+          fileUrl = `data:${mime};base64,${input.fileContent}`;
         }
 
-        const recordId = await createUploadRecord({
-          userId,
-          fileName: input.fileName,
-          fileType: input.fileType,
-          fileSize: input.fileSize,
-          fileUrl,
-          fileKey,
-          status: "pending",
-        });
+        let recordId = Date.now();
+        try {
+          recordId = await createUploadRecord({
+            userId,
+            fileName: input.fileName,
+            fileType: input.fileType,
+            fileSize: input.fileSize,
+            fileUrl,
+            fileKey,
+            status: "pending",
+          });
+        } catch {
+          // Allow no-database mode for lightweight deployments.
+        }
 
         return { id: recordId, fileUrl };
       }),
@@ -193,7 +193,11 @@ export const appRouter = router({
       .mutation(async ({ ctx, input }) => {
         const userId = ctx.user?.id || 0;
 
-        await updateUploadRecord(input.uploadId, { status: "processing", rawText: input.textContent });
+        try {
+          await updateUploadRecord(input.uploadId, { status: "processing", rawText: input.textContent });
+        } catch {
+          // Ignore when database is not configured.
+        }
 
         try {
           // Step 1: Extract events using LLM
@@ -338,13 +342,27 @@ export const appRouter = router({
             confidence: e.confidence ?? 80,
           }));
 
-          await createExtractedEvents(eventsToInsert);
-          await updateUploadRecord(input.uploadId, { status: "completed" });
+          try {
+            await createExtractedEvents(eventsToInsert);
+            await updateUploadRecord(input.uploadId, { status: "completed" });
 
-          const savedEvents = await getEventsByUploadId(input.uploadId);
-          return { events: savedEvents };
+            const savedEvents = await getEventsByUploadId(input.uploadId);
+            return { events: savedEvents };
+          } catch {
+            // Fallback response when database is not configured.
+            return {
+              events: eventsToInsert.map((event, idx) => ({
+                ...event,
+                id: -(idx + 1),
+              })),
+            };
+          }
         } catch (error: any) {
-          await updateUploadRecord(input.uploadId, { status: "failed" });
+          try {
+            await updateUploadRecord(input.uploadId, { status: "failed" });
+          } catch {
+            // Ignore when database is not configured.
+          }
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: `识别失败: ${error.message}`,
@@ -379,14 +397,22 @@ export const appRouter = router({
       }))
       .mutation(async ({ ctx, input }) => {
         const { id, ...data } = input;
-        await updateExtractedEvent(id, data);
+        try {
+          await updateExtractedEvent(id, data);
+        } catch {
+          // Allow editing in no-database mode.
+        }
         return { success: true };
       }),
 
     delete: publicProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ ctx, input }) => {
-        await deleteExtractedEvent(input.id);
+        try {
+          await deleteExtractedEvent(input.id);
+        } catch {
+          // Allow deleting in no-database mode.
+        }
         return { success: true };
       }),
   }),
@@ -409,12 +435,16 @@ export const appRouter = router({
         const shareId = nanoid(12);
 
         const userId = ctx.user?.id || 0;
-        await createCalendarShare({
-          userId,
-          shareId,
-          icsContent,
-          eventCount: input.events.length,
-        });
+        try {
+          await createCalendarShare({
+            userId,
+            shareId,
+            icsContent,
+            eventCount: input.events.length,
+          });
+        } catch {
+          // In no-database mode, still return downloadable ICS content.
+        }
 
         return {
           icsContent,
