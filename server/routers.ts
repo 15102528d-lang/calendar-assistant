@@ -33,6 +33,12 @@ interface ICSEvent {
   notes?: string;
 }
 
+function normalizeEventsPayload(payload: any): any[] {
+  if (Array.isArray(payload)) return payload;
+  if (payload && Array.isArray(payload.events)) return payload.events;
+  return [];
+}
+
 function generateICS(events: ICSEvent[]): string {
   const lines: string[] = [
     "BEGIN:VCALENDAR",
@@ -274,7 +280,7 @@ export const appRouter = router({
             content = JSON.stringify(content);
           }
 
-          let parsed: { events: any[] };
+          let parsed: any;
           try {
             parsed = JSON.parse(content);
           } catch {
@@ -287,11 +293,16 @@ export const appRouter = router({
             }
           }
 
+          const parsedEvents = normalizeEventsPayload(parsed);
+          if (parsedEvents.length === 0) {
+            throw new Error("模型未返回可识别的事件数组");
+          }
+
           // Step 2: Validate and enhance with second LLM pass
           const validationResult = await invokeLLM({
             messages: [
               { role: "system" as const, content: VALIDATION_SYSTEM_PROMPT },
-              { role: "user" as const, content: `请校验并优化以下日程数据：\n\n${JSON.stringify(parsed.events, null, 2)}` },
+              { role: "user" as const, content: `请校验并优化以下日程数据：\n\n${JSON.stringify(parsedEvents, null, 2)}` },
             ],
             response_format: {
               type: "json_schema",
@@ -331,7 +342,7 @@ export const appRouter = router({
             validatedContent = JSON.stringify(validatedContent);
           }
 
-          let validated: { events: any[] };
+          let validated: any;
           try {
             validated = JSON.parse(validatedContent);
           } catch {
@@ -339,12 +350,17 @@ export const appRouter = router({
             if (jsonMatch) {
               validated = JSON.parse(jsonMatch[1]);
             } else {
-              validated = parsed; // fallback to original
+              validated = parsedEvents; // fallback to original
             }
           }
 
+          const finalEvents = normalizeEventsPayload(validated);
+          if (finalEvents.length === 0) {
+            throw new Error("模型返回结果缺少 events 字段");
+          }
+
           // Step 3: Save to database
-          const eventsToInsert = validated.events.map((e: any) => ({
+          const eventsToInsert = finalEvents.map((e: any) => ({
             uploadId: input.uploadId,
             userId,
             date: e.date || "",
