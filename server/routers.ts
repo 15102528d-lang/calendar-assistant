@@ -5,6 +5,7 @@ import { publicProcedure, protectedProcedure, router } from "./_core/trpc";
 import { z } from "zod";
 import { nanoid } from "nanoid";
 import { invokeLLM } from "./_core/llm";
+import { extractTextForRecognition } from "./_core/fileExtraction";
 import {
   createUploadRecord,
   updateUploadRecord,
@@ -188,13 +189,29 @@ export const appRouter = router({
       .input(z.object({
         uploadId: z.number(),
         textContent: z.string(),
+        fileType: z.string().optional(),
+        fileContent: z.string().optional(),
+        mimeType: z.string().optional(),
         imageUrl: z.string().optional(),
       }))
       .mutation(async ({ ctx, input }) => {
         const userId = ctx.user?.id || 0;
+        const extractedText = await extractTextForRecognition({
+          fileType: input.fileType,
+          mimeType: input.mimeType,
+          fileContent: input.fileContent,
+          textContent: input.textContent,
+        });
+
+        if (!extractedText) {
+          throw new TRPCError({
+            code: "BAD_REQUEST",
+            message: "未能提取到可识别文本，请尝试更清晰图片或可复制文本的 PDF。",
+          });
+        }
 
         try {
-          await updateUploadRecord(input.uploadId, { status: "processing", rawText: input.textContent });
+          await updateUploadRecord(input.uploadId, { status: "processing", rawText: extractedText });
         } catch {
           // Ignore when database is not configured.
         }
@@ -208,15 +225,12 @@ export const appRouter = router({
           if (input.imageUrl) {
             messages.push({
               role: "user" as const,
-              content: [
-                { type: "image_url" as const, image_url: { url: input.imageUrl, detail: "high" as const } },
-                { type: "text" as const, text: `请从这张图片中提取所有日程信息。${input.textContent ? `\n\nOCR识别的文本内容：\n${input.textContent}` : ""}` },
-              ],
+              content: `请从以下文本中提取所有日程信息：\n\n${extractedText}`,
             });
           } else {
             messages.push({
               role: "user" as const,
-              content: `请从以下文本中提取所有日程信息：\n\n${input.textContent}`,
+              content: `请从以下文本中提取所有日程信息：\n\n${extractedText}`,
             });
           }
 
