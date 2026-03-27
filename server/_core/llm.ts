@@ -209,14 +209,23 @@ const normalizeToolChoice = (
   return toolChoice;
 };
 
-const resolveApiUrl = () =>
-  ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0
-    ? `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`
-    : "https://forge.manus.im/v1/chat/completions";
+function resolveApiUrl() {
+  if (ENV.deepseekApiUrl && ENV.deepseekApiUrl.trim().length > 0) {
+    return `${ENV.deepseekApiUrl.replace(/\/$/, "")}/chat/completions`;
+  }
+  if (ENV.forgeApiUrl && ENV.forgeApiUrl.trim().length > 0) {
+    return `${ENV.forgeApiUrl.replace(/\/$/, "")}/v1/chat/completions`;
+  }
+  return "https://api.deepseek.com/chat/completions";
+}
+
+function resolveApiKey() {
+  return ENV.deepseekApiKey || ENV.forgeApiKey;
+}
 
 const assertApiKey = () => {
-  if (!ENV.forgeApiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
+  if (!resolveApiKey()) {
+    throw new Error("DEEPSEEK_API_KEY is not configured");
   }
 };
 
@@ -267,6 +276,9 @@ const normalizeResponseFormat = ({
 
 export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   assertApiKey();
+  const apiUrl = resolveApiUrl();
+  const apiKey = resolveApiKey();
+  const isDeepSeek = apiUrl.includes("deepseek.com");
 
   const {
     messages,
@@ -280,7 +292,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   } = params;
 
   const payload: Record<string, unknown> = {
-    model: "gemini-2.5-flash",
+    model: ENV.llmModel || "deepseek-chat",
     messages: messages.map(normalizeMessage),
   };
 
@@ -296,10 +308,7 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
     payload.tool_choice = normalizedToolChoice;
   }
 
-  payload.max_tokens = 32768
-  payload.thinking = {
-    "budget_tokens": 128
-  }
+  payload.max_tokens = 4096;
 
   const normalizedResponseFormat = normalizeResponseFormat({
     responseFormat,
@@ -309,14 +318,18 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   });
 
   if (normalizedResponseFormat) {
-    payload.response_format = normalizedResponseFormat;
+    // DeepSeek currently has better compatibility with json_object than json_schema.
+    payload.response_format =
+      isDeepSeek && normalizedResponseFormat.type === "json_schema"
+        ? { type: "json_object" }
+        : normalizedResponseFormat;
   }
 
-  const response = await fetch(resolveApiUrl(), {
+  const response = await fetch(apiUrl, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      authorization: `Bearer ${ENV.forgeApiKey}`,
+      authorization: `Bearer ${apiKey}`,
     },
     body: JSON.stringify(payload),
   });
@@ -329,4 +342,3 @@ export async function invokeLLM(params: InvokeParams): Promise<InvokeResult> {
   }
 
   return (await response.json()) as InvokeResult;
-}
